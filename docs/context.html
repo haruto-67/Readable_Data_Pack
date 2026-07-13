@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第4〜5章 コメントと実行文脈 | リーダブル・データパック</title>
+<meta name="description" content="mcfunctionのコメントとドキュメンテーション(IMP-Doc)、実行文脈(execution context)の設計。ヘッダコメント、@s中心主義。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第4〜5章 コメントと実行文脈</h1>
+      <p class="chapter-lede">mcfunctionには引数リストも型もdocstringも無い。ヘッダコメントが唯一の「シグネチャ」であり、実行文脈の管理が可読性を最も左右する。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s4-1">4.1 全関数にヘッダコメントを書く</a></li>
+          <li><a href="#s4-2">4.2 IMP-Doc: 機械可読なドキュメント規約</a></li>
+          <li><a href="#s4-3">4.3 処理ブロックごとの節コメント</a></li>
+          <li><a href="#s4-4">4.4 「何を」より「なぜ」</a></li>
+          <li><a href="#s4-5">4.5 #region による折りたたみ</a></li>
+          <li><a href="#s4-6">4.6 コメントも保守対象</a></li>
+          <li><a href="#s5-1">5.1 「@s中心主義」で書く</a></li>
+          <li><a href="#s5-2">5.2 文脈をヘッダに書く</a></li>
+          <li><a href="#s5-3">5.3 anchoredとalignは使った場所でコメント</a></li>
+        </ul>
+      </div>
+
+      <h2 id="ch4">第4章 コメントとドキュメンテーション</h2>
+
+      <h3 id="s4-1">4.1 全関数にヘッダコメントを書く(GM4標準)</h3>
+      <p>Gamemode 4は<strong>テンプレート由来以外の全関数</strong>に以下のヘッダを義務付けている。
+      mcfunctionには引数リストも型もdocstringも無いので、これが唯一の「シグネチャ」になる:</p>
+
+<pre><code><span class="c"># Zauber大釜の生成時にパーティクル演出を再生する
+# @s = 付呪本を持っているプレイヤー
+# at @s (align xyz)
+# run from niwatori:cauldron/create</span></code></pre>
+
+      <p>最低限書くべき4点:</p>
+      <ol>
+        <li><strong>何をする関数か</strong>(1行説明)</li>
+        <li><strong>@s が誰か</strong>(セレクタ表記 or 日本語。複雑なセレクタは日本語で)</li>
+        <li><strong>実行位置/回転</strong>(<code>at @s</code>, <code>positioned 0 64 0</code>, alignの有無など)</li>
+        <li><strong>どこから呼ばれるか</strong>(<code>run from nw:xxx</code>、複数なら「functions in nw:till/blocks/」、
+          scheduleなら「scheduled by nw:xxx」)</li>
+      </ol>
+
+      <p>「どこから呼ばれるか」はgrepでも調べられるが、ヘッダにあることで
+      <strong>開いた瞬間に文脈が復元できる</strong>。これがmcfunction可読性の生命線。</p>
+
+      <h3 id="s4-2">4.2 IMP-Doc: 機械可読なドキュメント規約</h3>
+      <p>日本コミュニティ発で広く使われるドキュメント仕様 <strong>IMP-Doc</strong>(Interoperable Module Protocol
+      Documentation)は、上のヘッダコメントを形式化したもの。先頭行を <code>#&gt;</code> で始める:</p>
+
+<pre><code><span class="c">#&gt; niwatori:casino/atm/deposit
+# ATMへの入金処理。所持金スコアをstorageの口座残高へ移す。
+#
+# @within function niwatori:casino/atm/menu_handler
+# @input
+#   score @s nw.deposit_amount : 入金額(タマ)
+# @output
+#   storage niwatori:data account[].balance : 更新後残高
+# @private</span></code></pre>
+
+      <p>主なアノテーション(IMP-Doc仕様 + DHP拡張):</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>アノテーション</th><th>意味</th></tr></thead>
+          <tbody>
+            <tr><td><code>@input</code> / <code>@output</code></td><td>実行前に設定すべき値 / 実行後に設定される値</td></tr>
+            <tr><td><code>@within &lt;パス&gt;</code></td><td>指定した場所からしか呼ばれない(実質private)</td></tr>
+            <tr><td><code>@private</code> / <code>@public</code> / <code>@api</code></td><td>アクセス修飾子</td></tr>
+            <tr><td><code>@user</code></td><td>ユーザー(プレイヤーやコマブロ)が直接実行してよい</td></tr>
+            <tr><td><code>@context</code></td><td>要求する実行文脈(位置・回転・実行者)</td></tr>
+            <tr><td><code>@handles</code> / <code>@patch</code></td><td>イベント処理 / 他リソースへのパッチ</td></tr>
+            <tr><td><code>@deprecated</code> / <code>@internal</code></td><td>非推奨 / 内部用(DHP拡張)</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>エディタ(Spyglass / Datapack Helper Plus)がこれを解釈して補完・参照検索に使える。
+      公式仕様ではなくただのコメントなので、ゲーム動作には一切影響しない=導入コストゼロ。</p>
+
+      <h3 id="s4-3">4.3 処理ブロックごとの節コメント</h3>
+      <p>Elliversのプラクティス集が示す標準形。空行+コメントで段落を作る:</p>
+
+<pre><code><span class="c">#&gt; niwatori:pvp/arena/start
+# 試合開始処理
+# @within function niwatori:pvp/lobby/countdown</span>
+
+<span class="c"># 参加者を初期化</span>
+scoreboard players set @a[tag=nw.pvp.player] nw.pvp.kills 0
+effect clear @a[tag=nw.pvp.player]
+
+<span class="c"># アリーナへ転送</span>
+execute as @a[tag=nw.pvp.player] run function niwatori:pvp/arena/teleport_to_spawn
+
+<span class="c"># 開始演出</span>
+title @a[tag=nw.pvp.player] title {"text":"FIGHT","color":"red"}</code></pre>
+
+      <h3 id="s4-4">4.4 コメントの内容: 「何を」より「なぜ」</h3>
+      <p>コマンドの直訳コメント(<code># プレイヤーにダイヤを与える</code> → <code>give @s diamond</code>)は書かない。
+      書くべきは<strong>コマンドから読み取れない理由・制約・ハック</strong>:</p>
+
+<pre><code><span class="ng"># NG: tpでY+0.5している           ← 見れば分かる</span>
+<span class="ok"># OK: マーカーが半ブロック床にめり込むとレイキャストが失敗するためY+0.5補正</span>
+tp @s ~ ~0.5 ~</code></pre>
+
+      <p>特にmcfunctionは「1tick遅延しないと反映されないNBT」「セレクタの評価順」「マクロの再コンパイル」
+      などの罠ハック密度が高いので、<strong>未来の自分への言い訳</strong>を必ず残す。</p>
+
+      <h3 id="s4-5">4.5 #region による折りたたみ</h3>
+      <p>長い分岐列挙は <code>#region</code> / <code>#endregion</code>(DHP/一部エディタが折りたたみ対応)でグループ化できる:</p>
+
+<pre><code><span class="c">#region スロット絵柄ごとの配当分岐</span>
+execute if score #reel nw.tmp matches 1 run function nw:casino/slot/payout/cherry
+execute if score #reel nw.tmp matches 2 run function nw:casino/slot/payout/bell
+execute if score #reel nw.tmp matches 3 run function nw:casino/slot/payout/seven
+<span class="c">#endregion</span></code></pre>
+
+      <p>ただし折りたたみが必要なほど長い列挙は、そもそも分岐テーブル関数への分割やマクロ化を検討するサイン。</p>
+
+      <h3 id="s4-6">4.6 コメントも保守対象</h3>
+      <p>Bookshelfのガイドラインが強調する点: <strong>挙動を変えたらコメントも更新する</strong>。
+      古いコメントは無いより悪い。特に <code>@input</code>/<code>@output</code> とヘッダの「run from」は
+      リファクタ時に嘘になりやすいので、レビュー/セルフチェック項目に入れる(<a href="checklist.html">第16章</a>)。</p>
+
+      <hr>
+
+      <h2 id="ch5">第5章 実行文脈(execution context)の設計</h2>
+
+      <h3 id="s5-1">5.1 「@s中心主義」で書く</h3>
+      <p>mcfunctionの可読性を最も左右するのは実行文脈の管理。原則:</p>
+      <ol>
+        <li><strong>関数の中では@sと相対座標だけを使う</strong>(誰に対して動くかは呼び出し側が決める)</li>
+        <li>セレクタで対象を選ぶのは<strong>呼び出し側(分配層)の責務</strong></li>
+        <li>文脈を変えるexecuteが3行以上続いたら関数に切り出す</li>
+      </ol>
+
+      <p>これにより関数が「対象非依存の部品」になり、テストも再利用も楽になる。
+      Bookshelfの「Conservation Principle」も同じ思想で、<strong>関数は入力に責任を持ち、
+      出力以外を書き換えない</strong>(勝手にスコアを消したり作ったりしない)ことを求めている。</p>
+
+      <h3 id="s5-2">5.2 文脈をヘッダに書く(第4章と連動)</h3>
+      <p><code># @s = ...</code> <code># at @s</code> が書いてあれば、<code>~ ~ ~</code> が誰の足元かが一目で分かる。
+      文脈が「サーバー(実行者なし)」の関数では、うっかり<code>@s</code>や相対座標を使わないこと。
+      loadやscheduleから呼ばれる関数は実行者・位置を失う(ワールドスポーン基準になる)ことを
+      ヘッダに明記しておくと事故が減る:</p>
+
+<pre><code><span class="c">#&gt; niwatori:core/minute_clock
+# scheduleで毎分self-rescheduleされる時計
+# ⚠ 実行文脈なし: @sは存在せず、位置はワールドスポーン。エンティティ操作禁止</span></code></pre>
+
+      <h3 id="s5-3">5.3 anchoredとalignは使った場所でコメント</h3>
+      <p><code>anchored eyes</code> や <code>align xyz</code> は後続コマンドの座標の意味を静かに変える。
+      使う場合は同一行 or 直前コメントで意図を書く。</p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

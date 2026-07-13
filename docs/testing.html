@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第14〜15章 テストとアンチパターン | リーダブル・データパック</title>
+<meta name="description" content="データパックのテストとデバッグ手法(debugフォルダ、アサーション、テスト関数)と、やってはいけないアンチパターン14選。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第14〜15章 テストとアンチパターン</h1>
+      <p class="chapter-lede">「起きないはず」を検知する仕掛けと、コミュニティが積み上げてきた「やってはいけない」の一覧。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s14-1">14.1 debugフォルダを常設する</a></li>
+          <li><a href="#s14-2">14.2 表明(アサーション)を書く</a></li>
+          <li><a href="#s14-3">14.3 テスト関数</a></li>
+          <li><a href="#ch15">15. アンチパターン集</a></li>
+        </ul>
+      </div>
+
+      <h2 id="ch14">第14章 テストとデバッグ</h2>
+
+      <h3 id="s14-1">14.1 debugネームスペース/フォルダを常設する</h3>
+
+<pre><code>function/debug/
+├── dump_player.mcfunction    <span class="c"># @sの主要スコアとstorageをtellraw</span>
+├── give_test_kit.mcfunction
+└── reset_all.mcfunction</code></pre>
+
+      <ul>
+        <li>デバッグ出力は <code>@a[tag=nw.debug]</code> にだけ流す(本番プレイヤーに漏らさない)。</li>
+        <li>Bookshelf Devのように「ログ・変数ダンプ専用の開発用パック」を分離する構成も良い。</li>
+      </ul>
+
+      <h3 id="s14-2">14.2 表明(アサーション)を書く</h3>
+      <p>「起きないはず」の状態を検知したら管理者へ通報する行を要所に入れる:</p>
+
+<pre><code>execute if score #arena.state nw.var matches 4.. run \
+    tellraw @a[tag=nw.admin] {"text":"[BUG] arena.stateが範囲外","color":"red"}</code></pre>
+
+      <h3 id="s14-3">14.3 テスト関数</h3>
+      <p>純粋な計算関数(レーティング計算等)は <code>test/</code> に期待値比較の関数を書き、
+      手動 or CI(ヘッドレスサーバー起動)で叩ける形にしておく。
+      <code>execute store</code> + <code>if score ... matches 期待値</code> + 結果tellraw、で最低限のユニットテストになる。</p>
+
+      <hr>
+
+      <h2 id="ch15">第15章 アンチパターン集</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>アンチパターン</th><th>なぜ悪い</th><th>代わりに</th></tr></thead>
+          <tbody>
+            <tr><td>tick.jsonに関数を直接何個もぶら下げる</td><td>実行順が読めない、全体像が消える</td><td>分配関数1つ(<a href="structure.html#s3-1">3.1</a>)</td></tr>
+            <tr><td><code>replace: true</code> をtick/load.jsonに</td><td>他パック全滅</td><td>絶対禁止(<a href="structure.html#s2-2">2.2</a>)</td></tr>
+            <tr><td>プレフィックス無しobjective/tag</td><td>衝突</td><td>名前空間プレフィックス(<a href="naming.html">第1章</a>)</td></tr>
+            <tr><td>1関数に複数の実行文脈</td><td><code>~ ~ ~</code>が誰か分からない</td><td>@s中心+分割(<a href="context.html#ch5">第5章</a>)</td></tr>
+            <tr><td>巨大マクロ関数</td><td>全行が毎回再解析</td><td>マクロ行だけ隔離(<a href="macros.html#s6-3">6.3</a>)</td></tr>
+            <tr><td>ユーザー入力→マクロ直結</td><td>任意コマンド実行</td><td>ID化・検証(<a href="macros.html#s6-5">6.5</a>)</td></tr>
+            <tr><td><code>nbt={SelectedItem:...}</code>セレクタ</td><td>激重</td><td>predicate / if items(<a href="performance.html#s9-2">9.2</a>)</td></tr>
+            <tr><td>条件なし自己再帰</td><td>チェーン上限まで暴走</td><td>ガード節必須(<a href="variables.html#s8-3">8.3</a>)</td></tr>
+            <tr><td>scheduleにreplace無し</td><td>reload毎にループ増殖</td><td><code>replace</code>指定(<a href="operations.html#s11-2">11.2</a>)</td></tr>
+            <tr><td><code>kill @e[type=marker]</code>等の雑掃除</td><td>他パック・自パックの基盤を破壊</td><td>タグで限定(<a href="performance.html#s10-2">10.2</a>)</td></tr>
+            <tr><td>0初期化を前提にした<code>matches ..0</code></td><td>未定義スコアに効かない</td><td>明示的初期化(<a href="variables.html#s7-4">7.4</a>)</td></tr>
+            <tr><td>コメントとコードの乖離</td><td>嘘ドキュメント</td><td>変更時にヘッダも更新(<a href="context.html#s4-6">4.6</a>)</td></tr>
+            <tr><td>デバッグsayの放置</td><td>本番でチャット汚染</td><td>debugタグ宛てtellraw(<a href="#s14-1">14.1</a>)</td></tr>
+            <tr><td>生成ファイルの手編集</td><td>次の生成で消える</td><td>生成物隔離(<a href="structure.html#s3-5">3.5</a>)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

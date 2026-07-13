@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第7〜8章 変数管理と制御構造 | リーダブル・データパック</title>
+<meta name="description" content="scoreboard / storage / マクロ引数の使い分け、定数プール、一時変数の規約、早期return、if/else、ループ、イベント駆動設計。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第7〜8章 変数管理と制御構造</h1>
+      <p class="chapter-lede">scoreboard・storage・NBTの使い分けと、mcfunction流のif/else・ループ・イベント駆動のイディオム。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s7-1">7.1 使い分けの原則</a></li>
+          <li><a href="#s7-2">7.2 objectiveは増やしすぎない</a></li>
+          <li><a href="#s7-3">7.3 定数はloadで初期化する定数プール</a></li>
+          <li><a href="#s7-4">7.4 「0と未定義は違う」</a></li>
+          <li><a href="#s7-5">7.5 一時変数の規約</a></li>
+          <li><a href="#s7-6">7.6 enumは数値+コメント表</a></li>
+          <li><a href="#s8-1">8.1 早期リターン(return)を使う</a></li>
+          <li><a href="#s8-2">8.2 if/else のイディオム</a></li>
+          <li><a href="#s8-3">8.3 ループは3種類を使い分ける</a></li>
+          <li><a href="#s8-4">8.4 分岐テーブルはディスパッチ関数に隔離</a></li>
+          <li><a href="#s8-5">8.5 イベント駆動を最優先する</a></li>
+        </ul>
+      </div>
+
+      <h2 id="ch7">第7章 変数管理(scoreboard / storage / マクロ引数)</h2>
+
+      <h3 id="s7-1">7.1 使い分けの原則</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>手段</th><th>型</th><th>速度</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>scoreboard</td><td>int32のみ</td><td>最速</td><td>カウンタ、フラグ、演算、tick毎の状態</td></tr>
+            <tr><td>storage</td><td>任意NBT</td><td>速い(entity/block NBTより大幅に)</td><td>構造化データ、文字列、リスト、設定</td></tr>
+            <tr><td>entity/block NBT</td><td>任意</td><td><strong>遅い</strong>(特にプレイヤー)</td><td>最終読み書きのみ。作業領域にしない</td></tr>
+            <tr><td>マクロ引数</td><td>任意</td><td>呼び出しが遅い</td><td>関数への引数渡し専用</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>NBTを何度も加工するときは「一度storageへコピー→storage上で加工→書き戻し」が定石
+      (Elliversのプラクティス集)。</p>
+
+      <h3 id="s7-2">7.2 objectiveは増やしすぎない: フェイクプレイヤー活用</h3>
+      <p>「変数1個ごとにobjectiveを1個作る」のは典型的アンチパターン。
+      グローバル変数はobjective 1〜2個(<code>nw.var</code> 等)+フェイクプレイヤー名で無限に作れる:</p>
+
+<pre><code>scoreboard players set #casino.jackpot nw.var 0
+scoreboard players set #arena.state nw.var 1</code></pre>
+
+      <p>objectiveを分けるべきなのは「エンティティごとに値を持つ」「trigger用」「statistics連動」の時。</p>
+
+      <h3 id="s7-3">7.3 定数はloadで初期化する定数プール</h3>
+      <p>乗除算に使う定数は <code>nw.const</code> objectiveに <code>#値</code> 名で集中管理(<a href="naming.html#s1-5">1.5</a>参照)。
+      loadで必ず初期化し、<strong>実行中にsetし直さない</strong>:</p>
+
+<pre><code><span class="c">#&gt; niwatori:core/constants
+# @within function niwatori:load</span>
+scoreboard players set #2 nw.const 2
+scoreboard players set #100 nw.const 100
+scoreboard players set #20 nw.const 20    <span class="c"># 1秒 = 20tick</span></code></pre>
+
+      <h3 id="s7-4">7.4 「0と未定義は違う」を設計に織り込む</h3>
+      <p><code>matches ..0</code> は未定義スコアにマッチしない。テストワールドでは動くのに本番で動かない
+      バグの代表格。<strong>プレイヤー系スコアは参加時/loadで明示的に0初期化</strong>する規約にする:</p>
+
+<pre><code><span class="c"># 新規参加者の初期化(tickで未初期化者だけ拾う)</span>
+execute as @a[predicate=!nw:is_initialized] run function nw:core/init_player</code></pre>
+
+      <h3 id="s7-5">7.5 一時変数の規約</h3>
+      <ul>
+        <li>名前: <code>#tmp</code>, <code>#tmp2</code> ではなく <code>#calc.damage</code>, <code>#calc.rate</code> のように用途を書く。
+          ただし<strong>関数内で完結し、次のtickに持ち越さない</strong>ものだけを一時変数と呼ぶ。</li>
+        <li>使い終わった一時storageは放置でよい(次回上書きされる設計にする)。
+          逆に <code>data remove</code> で几帳面に消して回るとコスト増+他所が読んでいた場合に事故る。
+          Bookshelfの保存原則: <strong>スコアの削除は極力しない、リセット/上書きで済ます</strong>。</li>
+      </ul>
+
+      <h3 id="s7-6">7.6 enumは数値+コメント表 or 「Enum Scoreboard」</h3>
+      <p>状態機械(ゲーム進行state等)は文字列でなくintで持ち、対応表をコメントとloadに残す:</p>
+
+<pre><code><span class="c">#&gt; niwatori:pvp/arena/states
+# #arena.state nw.var の値:
+#   0 = 待機 / 1 = カウントダウン / 2 = 試合中 / 3 = リザルト</span></code></pre>
+
+      <p>MC Datapacksコミュニティには、値名をフェイクプレイヤー化してobjective自体を
+      enum定義として使う「Enum Scoreboard」というテクニックもある
+      (<code>scoreboard players set WAITING nw.arena_state_enum 0</code> のように定義を実体化する)。</p>
+
+      <hr>
+
+      <h2 id="ch8">第8章 制御構造のイディオム</h2>
+
+      <h3 id="s8-1">8.1 早期リターン(return)を使う</h3>
+      <p>1.20.2+の <code>/return</code> はガード節そのもの。ネストしたexecuteより読める:</p>
+
+<pre><code><span class="c">#&gt; niwatori:casino/atm/withdraw
+# 出金。残高不足なら即終了</span>
+execute if score @s nw.money &lt; #withdraw.amount nw.var run return run \
+    tellraw @s {"text":"残高が足りません","color":"red"}
+
+<span class="c"># ここから正常系</span>
+...</code></pre>
+
+      <p>Minecraft Wiki最適化チュートリアルも「後続条件があり得なくなったら<code>return run</code>で打ち切る、
+      順序に意味がなければ<strong>成立確率の高い条件を先に</strong>書く」ことを推奨。</p>
+
+      <div class="callout-warn">
+        <p>⚠ 注意: <code>execute as @e ... run return</code> は最初の1体で関数全体が終わるので、
+        複数対象への分岐がある関数では使わない(分岐専用関数に隔離してから使う)。</p>
+      </div>
+
+      <h3 id="s8-2">8.2 if/else は「フラグ+2連if」か「return」で</h3>
+      <p>mcfunctionにelseは無い。素朴な2連 <code>if</code>/<code>unless</code> は1行目が状態を変えると2行目も走る事故がある。
+      定石は (a) 結果を一時スコアに保存して分岐、(b) return方式:</p>
+
+<pre><code><span class="c"># (a) 判定を先に固定する</span>
+execute store success score #can_pay nw.tmp if score @s nw.money matches 100..
+execute if score #can_pay nw.tmp matches 1 run function nw:casino/slot/spin
+execute if score #can_pay nw.tmp matches 0 run tellraw @s {"text":"コインが足りない"}</code></pre>
+
+      <h3 id="s8-3">8.3 ループは3種類を使い分け、必ず停止条件を先頭に</h3>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>種類</th><th>実装</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td>毎tickループ</td><td><code>#minecraft:tick</code></td><td>常時監視。最小限に</td></tr>
+            <tr><td>低頻度ループ</td><td><code>schedule function ... 20t</code> の自己再スケジュール</td><td>秒単位で十分な監視・時計</td></tr>
+            <tr><td>tick内再帰</td><td>関数が自分を<code>function</code>で呼ぶ</td><td>カウント処理、レイキャスト</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>再帰は<strong>必ず1行目に脱出条件</strong>(ガード)を書く。条件なし再帰はmaxCommandChainLength
+      まで暴走する。レイキャストの1ステップ距離は貫通防止のため0〜1ブロック程度にする
+      (コミュニティの定番注意点)。scheduleは実行文脈を失う点もヘッダに明記(<a href="context.html#s5-2">5.2</a>)。</p>
+
+      <h3 id="s8-4">8.4 分岐テーブルは「ディスパッチ関数」に隔離</h3>
+      <p>同じ対象への <code>execute if score ... run function ...</code> の列挙は、それ専用の
+      <code>dispatch.mcfunction</code> / <code>payout/_dispatch.mcfunction</code> を作ってそこに置く。
+      tick関数や業務ロジックの中に分岐列挙を埋め込まない。</p>
+
+      <h3 id="s8-5">8.5 イベント駆動を最優先する(ポーリングは最後の手段)</h3>
+      <p>「毎tick全員を調べる」前に、advancementトリガー(<code>player_interacted_with_entity</code>,
+      <code>placed_block</code>, <code>inventory_changed</code>, <code>using_item</code>...)+ <code>rewards.function</code> で
+      <strong>起きた時だけ関数を走らせる</strong>設計を検討する(Elliversも同旨)。
+      進捗は <code>revoke</code> して使い捨てるイディオムとセットで:</p>
+
+<pre><code><span class="c">#&gt; niwatori:casino/atm/on_interact
+# advancement niwatori:casino/atm/interacted の rewards から
+# @s = ATMエンティティをクリックしたプレイヤー</span>
+advancement revoke @s only niwatori:casino/atm/interacted
+function niwatori:casino/atm/open</code></pre>
+
+      <p>triggerスコアボード(dialogの<code>run_command</code>権限回避等)も同様にイベント駆動の一種。
+      <code>tick監視 → scoreboard/predicate → advancement/trigger</code> の順で「より受動的な仕組み」へ
+      置き換えられないか常に考える。</p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

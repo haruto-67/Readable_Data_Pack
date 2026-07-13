@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第11〜13章 運用・配布・ツール | リーダブル・データパック</title>
+<meta name="description" content="load / tick / install / uninstall の標準ファイルセット、pack.mcmetaとバージョン管理、Git運用、開発環境(Spyglass)・CI・ビルドツール。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第11〜13章 運用・配布・ツール</h1>
+      <p class="chapter-lede">入口(load/tick/install/uninstall)を揃え、バージョンを管理し、道具で品質を守る。サーバー運営の事故率はここで決まる。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s11-1">11.1 標準ファイルセットを決める</a></li>
+          <li><a href="#s11-2">11.2 loadは冪等に</a></li>
+          <li><a href="#s11-3">11.3 uninstallを提供する</a></li>
+          <li><a href="#s12-1">12.1 pack.mcmeta</a></li>
+          <li><a href="#s12-2">12.2 バージョン番号をデータでも持つ</a></li>
+          <li><a href="#s12-3">12.3 Gitで管理する</a></li>
+          <li><a href="#ch13">13. 開発環境・ツール・CI</a></li>
+        </ul>
+      </div>
+
+      <h2 id="ch11">第11章 load / tick / インストール / アンインストール</h2>
+
+      <h3 id="s11-1">11.1 標準ファイルセットを決める</h3>
+      <p>良いデータパックは「入口」が全部同じ場所にある。推奨テンプレート:</p>
+
+<pre><code>function/
+├── load.mcfunction        <span class="c"># #minecraft:load から。冪等に書く</span>
+├── tick.mcfunction        <span class="c"># #minecraft:tick から。分配のみ</span>
+├── install.mcfunction     <span class="c"># 初回セットアップ(forceload, marker設置等)</span>
+├── uninstall.mcfunction   <span class="c"># 完全撤去</span>
+└── version.mcfunction     <span class="c"># バージョン表示(任意)</span></code></pre>
+
+      <p>Bookshelfは <code>__load__</code> / <code>__unload__</code> / <code>__help__</code> をモジュール毎の予約名にしている。
+      名前は何でもよいが<strong>全モジュールで統一</strong>する。</p>
+
+      <h3 id="s11-2">11.2 loadは冪等(何度実行しても安全)に</h3>
+      <p><code>/reload</code> のたびに走るので、loadで「追加」する処理は既存チェック付きにする:</p>
+
+<pre><code><span class="c">#&gt; niwatori:load
+# ⚠ /reloadごとに実行される。冪等であること</span>
+scoreboard objectives add nw.var dummy
+scoreboard objectives add nw.money dummy "所持金"
+function niwatori:core/constants
+schedule function niwatori:core/minute_clock 1t replace   <span class="c"># replaceで多重登録防止</span>
+tellraw @a[tag=nw.admin] {"text":"[にわとりMC] reloaded vX.Y.Z","color":"gray"}</code></pre>
+
+      <p><code>schedule ... replace</code> を使わないとreloadのたびにループが増殖する。定番バグ。
+      reload完了メッセージ(バージョン付き)は運用上のデバッグ効率を大きく上げる
+      (MC Datapacksスタイルガイドの「Reloading Message」)。</p>
+
+      <h3 id="s11-3">11.3 uninstallを提供する</h3>
+      <p>MC Datapacks規約「Datapack Uninstallation」。行儀の良いパックは
+      自分が作ったものを全部消す関数を持つ:</p>
+
+<pre><code><span class="c">#&gt; niwatori:uninstall
+# このデータパックの痕跡を全て除去する。実行後にdatapack disable推奨</span>
+scoreboard objectives remove nw.var
+scoreboard objectives remove nw.money
+kill @e[tag=niwatori.entity]
+data remove storage niwatori:data {}
+schedule clear niwatori:core/minute_clock
+tellraw @s {"text":"[にわとりMC] アンインストール完了。datapack disableしてください"}</code></pre>
+
+      <p>サーバー運営では「入れて試して消す」が頻繁なので、uninstallの有無が事故率に直結する。</p>
+
+      <hr>
+
+      <h2 id="ch12">第12章 バージョン管理・配布・メタ情報</h2>
+
+      <h3 id="s12-1">12.1 pack.mcmeta</h3>
+      <ul>
+        <li><code>description</code> にはパック名・対象MCバージョン・自分のバージョン・作者を入れる
+          (データパック選択画面とdatapack listで見える唯一の自己紹介)。</li>
+        <li>1.21.9以降(pack_format 88〜)は <code>min_format</code> / <code>max_format</code> 方式に移行済み。
+          1.21.11なら新旧両方の書式に注意。26.x系(pack_format 100+)への更新時は
+          フォーマット変更点(NBT型厳格化等)の洗い出しをリリースノートで確認する。</li>
+      </ul>
+
+<pre><code>{
+  "pack": {
+    "description": "にわとりMC Casino v1.4.0 (MC 1.21.11) by niwatori",
+    "min_format": 88,
+    "max_format": 88
+  }
+}</code></pre>
+
+      <h3 id="s12-2">12.2 バージョン番号をデータでも持つ</h3>
+      <p><code>load</code>時に <code>#version.major nw.var</code> 等へ格納しておくと、
+      ワールドに残った旧データからのマイグレーション(「v1.3のstorage形式をv1.4へ変換」)が書ける。
+      GM4がモジュール更新リストで同様の仕組みを持つ。<strong>storage構造を変えたら移行関数を書く</strong>、
+      を運用ルールにする。</p>
+
+      <h3 id="s12-3">12.3 Gitで管理する</h3>
+      <ul>
+        <li>リポジトリのルートは「pack.mcmetaがある階層」(エディタ支援ツールの前提でもある)。</li>
+        <li>zipではなくフォルダのままworldに置き、シンボリックリンク or デプロイスクリプトで反映。</li>
+        <li>コミット規約(Bookshelfは Conventional Commits 風)を軽く決めておくとchangelogが自動化できる。</li>
+      </ul>
+
+      <hr>
+
+      <h2 id="ch13">第13章 開発環境・ツール・CI</h2>
+      <ul>
+        <li><strong>VSCode + Spyglass(旧Datapack Helper Plus)</strong>: 補完・参照検索・リネーム・IMP-Doc解釈。
+          データパック開発の事実上の標準環境。</li>
+        <li><strong>language-mcfunction</strong>(Arcensoth): シンタックスハイライト。</li>
+        <li><strong>datapack-linter</strong>(ChenCMD): GitHub Actionsでpush毎に全mcfunction/jsonの構文チェック。
+          ゲームを起動せずに壊れたコマンドを検出できる。マルチ人数開発やリファクタ時の保険に最適。</li>
+        <li><strong>misode.github.io</strong>: loot table / predicate / advancement等のGUIジェネレータ。</li>
+        <li><strong>ビルドツール</strong>: beet(GM4が採用)/ sandstone / mcbuild など。テンプレ大量生成や
+          複数パックの合成が必要な規模になったら導入を検討。Pythonでの自前生成(<a href="structure.html#s3-5">3.5</a>)も立派な選択肢。</li>
+        <li><strong>Weld(Smithed)</strong>: 複数データパック/リソパの合成ツール。配布時の互換性検証にも。</li>
+      </ul>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

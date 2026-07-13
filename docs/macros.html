@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第6章 マクロ関数の設計 ★ | リーダブル・データパック</title>
+<meta name="description" content="Minecraft 1.20.2+のマクロ関数の設計規約。マクロ実体の命名、引数受け渡し規約、マクロ行の隔離、セキュリティ(任意コマンド実行対策)、マクロvs代替手段の選択表。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第6章 マクロ関数の設計 ★</h1>
+      <p class="chapter-lede">本ガイドの目玉。マクロは強力だが「毎回再解析される」「ファイルが散らかる」という代償がある。設計規約で制御する。</p>
+
+      <p>1.20.2で追加されたマクロ(<code>$(name)</code> 展開)は強力だが、
+      「<strong>マクロ行を含む関数は呼び出し時に毎回再解析される</strong>」という性質があり、
+      datapack.wikiやコミュニティの共通見解として<strong>通常のコマンドより大幅に遅い</strong>。
+      さらに「マクロを使う行は必ず専用ファイルに分けたくなる」ため、設計規約が無いと
+      ファイルが散らかる。ここが本ガイドの目玉。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s6-1">6.1 「本体」と「マクロ実体」をペアにする</a></li>
+          <li><a href="#s6-2">6.2 引数受け渡しの呼び出し規約を1つに固定する</a></li>
+          <li><a href="#s6-3">6.3 マクロ行は最小限に隔離する</a></li>
+          <li><a href="#s6-4">6.4 マクロ引数名の命名</a></li>
+          <li><a href="#s6-5">6.5 セキュリティ: ユーザー入力をマクロに流さない</a></li>
+          <li><a href="#s6-6">6.6 マクロvs代替手段の選択表</a></li>
+        </ul>
+      </div>
+
+      <h2 id="s6-1">6.1 命名規約: 「本体」と「マクロ実体」をペアにする</h2>
+      <p>マクロのために分離したファイルは、<strong>呼び出し元と同名+固定サフィックス/固定サブフォルダ</strong>にする。
+      おすすめは2案。プロジェクトでどちらかに統一する:</p>
+
+      <p><strong>案A: 同名フォルダ + macro.mcfunction(推奨)</strong></p>
+
+<pre><code>casino/atm/deposit.mcfunction          <span class="c"># 引数を準備して呼ぶ「本体」</span>
+casino/atm/deposit/macro.mcfunction    <span class="c"># $(...)を含む「マクロ実体」</span></code></pre>
+
+      <p><strong>案B: サフィックス方式</strong></p>
+
+<pre><code>casino/atm/deposit.mcfunction
+casino/atm/deposit_macro.mcfunction    <span class="c"># または deposit.m.mcfunction</span></code></pre>
+
+      <p>どちらでも「<code>deposit</code> を読みたい人が迷わず両方を見つけられる」ことが目的。
+      逆に <strong>マクロ実体を <code>util/</code> や <code>macro/</code> などの遠いフォルダにまとめて置かない</strong>こと。
+      処理のまとまり(モジュール)が壊れ、コードジャンプが往復になる。</p>
+
+      <p>さらにIMP-Docの <code>@within</code> を書けば「この<code>macro</code>は隣の<code>deposit</code>からしか呼ばれない」ことが
+      機械にも人間にも伝わる:</p>
+
+<pre><code><span class="c">#&gt; niwatori:casino/atm/deposit/macro
+# 実際の入金額を反映するマクロ実体
+# @within function niwatori:casino/atm/deposit
+# @input
+#   args: {amount: int, unit: string}</span>
+$scoreboard players remove @s nw.money $(amount)
+$tellraw @s {"text":"$(amount) $(unit) を入金しました"}</code></pre>
+
+      <h2 id="s6-2">6.2 引数受け渡しの呼び出し規約を1つに固定する</h2>
+      <p>マクロの引数は「インラインNBT」「with storage」「with entity」「with block」の4通りあるが、
+      プロジェクト内の規約としては次の2択に絞ると読みやすい:</p>
+
+      <ol>
+        <li><strong>定数引数</strong> → インラインNBTで直書き(呼び出し箇所を見れば値が分かる)
+<pre><code>function nw:casino/atm/deposit/macro {amount: 100, unit: "タマ"}</code></pre>
+        </li>
+        <li><strong>動的引数</strong> → 専用storage <code>nw:in</code> の<strong>関数パスと同じキー</strong>に詰めて <code>with</code> で渡す
+<pre><code><span class="c"># 呼び出し側(本体 deposit.mcfunction)</span>
+execute store result storage nw:in casino.atm.deposit.amount int 1 \
+    run scoreboard players get @s nw.deposit_request
+data modify storage nw:in casino.atm.deposit.unit set value "タマ"
+function nw:casino/atm/deposit/macro with storage nw:in casino.atm.deposit</code></pre>
+        </li>
+      </ol>
+
+      <p>「引数はどこから来たのか」問題(マクロ最大の可読性リスク)を、
+      <strong><code>nw:in</code> の <code>casino.atm.deposit</code> を見れば必ず分かる</strong>という形で解決する。
+      Bookshelf等のライブラリも「入力→専用の場所に置く→呼ぶ」の規約で統一している。
+      戻り値が要る場合は同様に <code>nw:out</code> へ書く or <code>return run</code> で数値を返す。</p>
+
+      <h2 id="s6-3">6.3 マクロ行は最小限に隔離する</h2>
+      <p>再解析コストは<strong>マクロ行を含むファイル全体</strong>にかかる。したがって:</p>
+
+<pre><code><span class="ng">❌ 40行の処理の中に $行が2行混ざったファイル</span>
+<span class="ok">✅ 38行の通常関数 + $行2行だけのマクロ実体ファイル</span></code></pre>
+
+      <p>「$が1行でもあるならそのファイルは短く」を徹底する。
+      また、<strong>マクロで実現できても、分岐数が少なく固定なら普通のexecute分岐の方が速い</strong>。</p>
+
+<pre><code><span class="ng">❌ 3種類しかない絵柄をマクロで動的ディスパッチ</span>
+<span class="ok">✅ execute if score ... matches 1 run function nw:...cherry (3行書く)</span></code></pre>
+
+      <p>マクロが正当化されるのは「値が実行時にしか決まらない」「組み合わせが多すぎて列挙不能」
+      「tellraw/give等の文字列に動的値を埋める」場合。
+      tick毎に走るホットパスからのマクロ呼び出しは設計から見直す。</p>
+
+      <h2 id="s6-4">6.4 マクロ引数名の命名</h2>
+      <ul>
+        <li><code>$(a)</code> <code>$(x)</code> のような1文字は禁止。呼び出し側のNBTキーがそのままドキュメントになるので
+          <code>$(amount)</code> <code>$(target_uuid)</code> <code>$(dimension)</code> のように<strong>キー名=引数名</strong>として意味を持たせる。</li>
+        <li>単位を含める: <code>$(delay_ticks)</code>, <code>$(price_tama)</code>。</li>
+        <li>同じマクロ実体を複数箇所から呼ぶ場合、引数構造(キー名と型)はヘッダの <code>@input</code> に必ず書く。
+          マクロは引数不足だと<strong>実行時に初めて失敗する</strong>(コンパイル時チェックがない)ため、
+          ドキュメントが型定義の代わりになる。</li>
+      </ul>
+
+      <h2 id="s6-5">6.5 セキュリティ: ユーザー入力をマクロに流さない</h2>
+      <p><code>$$(code)</code> のような書き方や、プレイヤーが編集可能なNBT(記名アイテム、本の内容、
+      custom_data)を無検証でマクロに渡すと、<strong>任意コマンド実行(ACE)</strong>が成立し得る。
+      コミュニティでも実証されている既知の穴。サーバー運営では特に:</p>
+      <ul>
+        <li>マクロに渡す文字列は自分のデータパックが書き込んだものだけに限定する</li>
+        <li>プレイヤー由来の文字列を使うなら、事前にホワイトリスト照合(スコアIDやenum化)を挟む</li>
+        <li>「文字列そのもの」ではなく「ID番号→loadで初期化したテーブル参照」で間接化する</li>
+      </ul>
+
+      <h2 id="s6-6">6.6 マクロvs代替手段の選択表</h2>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>やりたいこと</th><th>第一候補</th><th>マクロを使うべき場合</th></tr></thead>
+          <tbody>
+            <tr><td>少数の固定分岐</td><td>execute if + 分岐関数</td><td>分岐が数十以上で列挙が破綻する時</td></tr>
+            <tr><td>動的な数値をコマンドへ</td><td>execute store / scoreboard</td><td>tp座標やeffect時間など store不可の引数</td></tr>
+            <tr><td>動的テキスト表示</td><td>tellrawのscore/nbt/selector埋め込み</td><td>文体自体が変わる・翻訳分岐など</td></tr>
+            <tr><td>アイテム動的生成</td><td>loot table + item_modifier</td><td>NBT構造が実行時にしか決まらない時</td></tr>
+            <tr><td>エンティティ指定</td><td>tag付け→セレクタ</td><td>UUIDを直接コマンドに埋める必要がある時</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>「マクロでしかできないこと」以外にマクロを使わない、が結論。</p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第9〜10章 パフォーマンスと互換性 | リーダブル・データパック</title>
+<meta name="description" content="データパックのパフォーマンス作法(セレクタ最適化、NBTを避ける、tickを軽くする、計測)と、複数データパック共存のための互換性ルール。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第9〜10章 パフォーマンスと互換性</h1>
+      <p class="chapter-lede">読みやすさと速度が両立するのがデータパックの良いところ。そして複数パックが共存するサーバーでは互換性の作法が必須。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s9-1">9.1 セレクタ</a></li>
+          <li><a href="#s9-2">9.2 NBTを避ける階段</a></li>
+          <li><a href="#s9-3">9.3 tickを軽くする</a></li>
+          <li><a href="#s9-4">9.4 計測してから最適化する</a></li>
+          <li><a href="#s10-1">10.1 絶対ルール</a></li>
+          <li><a href="#s10-2">10.2 共通タグ規約に乗る</a></li>
+          <li><a href="#s10-3">10.3 カスタムアイテムの識別</a></li>
+        </ul>
+      </div>
+
+      <h2 id="ch9">第9章 パフォーマンス作法</h2>
+      <p>Minecraft Wikiの「Tutorial: Optimizing a data pack」とコミュニティ実践からの要点。</p>
+
+      <h3 id="s9-1">9.1 セレクタ</h3>
+      <ul>
+        <li><code>@e</code> は最小限。<strong>型を必ず指定</strong>(<code>@e[type=marker]</code>)し、可能なら <code>tag=</code> で第一絞り込み。
+          セレクタ引数は概ね「安い順に絞れる」よう <code>type</code> → <code>tag</code> → <code>distance</code>/<code>scores</code> の意識で。</li>
+        <li>同じセレクタを複数行で繰り返さない → <code>as</code>で関数に入って<code>@s</code>化(<a href="structure.html#s3-2">3.2</a>)。</li>
+        <li>遠くで動く必要のない処理には <code>distance=..N</code> を付ける。大量エンティティ相手なら
+          「プレイヤー周辺に定期的に<code>active</code>タグを付け、以後は<code>tag=active</code>で選ぶ」方式が
+          distance連打より安い(Wiki推奨テク)。</li>
+        <li><code>@a</code> は <code>@e[type=player]</code> より速い(プレイヤーリストだけ走査する)。</li>
+      </ul>
+
+      <h3 id="s9-2">9.2 NBTを避ける階段</h3>
+      <ol>
+        <li>セレクタ<code>nbt=</code>引数 → <strong>predicateへ</strong>(equipment, vehicle等は専用フィールドがある)</li>
+        <li>アイテム判定 → <code>execute if items entity @s weapon.mainhand &lt;item&gt;</code>(1.20.5+、最速級)</li>
+        <li>どうしてもNBT加工 → storageへコピーして加工(プレイヤーNBT直接操作は最悪コスト)</li>
+        <li>アイテム改変 → <code>data modify</code>でなく <strong>item_modifier / item replace</strong></li>
+      </ol>
+
+      <p>なお「predicateの中で<code>nbt</code>キーだけ使う」のは速くならない(Ellivers)。
+      predicateが速いのは構造化フィールドを使った時だけ。</p>
+
+      <h3 id="s9-3">9.3 tickを軽くする</h3>
+      <ul>
+        <li>tick.jsonには分配関数1つ(<a href="structure.html#s3-1">3.1</a>)。分配関数の先頭で「そもそも今やることがあるか」を
+          スコア1個で判定して早期return。</li>
+        <li>毎tick必要ない処理は <code>schedule</code> 自己ループで 2t/5t/20t に間引く。
+          エンティティ個別なら predicate の <code>periodic_tick</code> も使える(セレクタは走るのでscheduleより劣る)。</li>
+        <li>重い計算は複数tickに分割する(時分割)。tick予算(50ms)を意識する。</li>
+      </ul>
+
+      <h3 id="s9-4">9.4 計測してから最適化する</h3>
+      <ul>
+        <li><code>/debug start</code> → <code>/debug stop</code> のプロファイル結果で関数ごとの時間を見る
+          (<code>commandFunctions</code>/<code>scheduledFunctions</code> の項目)。</li>
+        <li>F3のTPSグラフ/<code>/perf</code>、または計測用データパック(Kragast's Benchmark等)でベンチ。</li>
+        <li>推測で「速い書き方」に書き換えて可読性を落とすのは本末転倒。<strong>遅いと分かった場所だけ</strong>直す。
+          この点も『リーダブルコード』と同じ。</li>
+      </ul>
+
+      <hr>
+
+      <h2 id="ch10">第10章 互換性・複数データパック共存</h2>
+      <p>サーバー(にわとりMCのようにロビー+PVP等)で複数パックを同居させるなら必須の章。</p>
+
+      <h3 id="s10-1">10.1 絶対ルール</h3>
+      <ul>
+        <li><code>minecraft</code>名前空間のtick/loadタグに <code>"replace": true</code> を書かない(<a href="structure.html#s2-2">2.2</a>)</li>
+        <li>全ての名前(objective/tag/storage/team/bossbar/fakeplayer)に名前空間プレフィックス</li>
+        <li>バニラ挙動の上書き(loot table等)は「合理的な範囲」に留め、README/descriptionに明記する</li>
+      </ul>
+
+      <h3 id="s10-2">10.2 共通タグ規約に乗る</h3>
+      <ul>
+        <li><code>smithed.entity</code>: データパックが生成したエンティティ(「バニラのゾンビ」等を対象とする
+          他パックの処理から除外してもらう)</li>
+        <li><code>smithed.strict</code>: 他パックは一切触らないでほしいエンティティ</li>
+        <li>Bookshelfの <code>bs.persistent</code> のように「killしないで」系タグを尊重する
+          (掃除コマンドは <code>kill @e[type=item]</code> でなく <code>kill @e[type=item,tag=!nw.keep,tag=!smithed.strict]</code> 的に)</li>
+      </ul>
+
+      <p>自作エンティティには自分のタグ+<code>smithed.entity</code>を両方付けるのが行儀の良い作法。</p>
+
+      <h3 id="s10-3">10.3 カスタムアイテムの識別</h3>
+      <p><code>custom_data</code> に自名前空間で <code>{niwatori:{id:"rating_sword"}}</code> 形式のIDを持たせ、
+      判定は必ずこのIDで行う。Item名やCustomModelDataでの判定は、リソパ更新や
+      他パックとの併用で壊れる。(旧CMD時代はSmithedのCMDプレフィックス規約があったが、
+      現行は<code>custom_data</code>/<code>item_model</code>コンポーネントで名前空間分離するのが素直。)</p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

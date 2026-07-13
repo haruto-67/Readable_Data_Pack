@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第2〜3章 名前空間とディレクトリ構造 | リーダブル・データパック</title>
+<meta name="description" content="Minecraftデータパックの名前空間の設計とディレクトリ構造。minecraft名前空間の扱い、レイヤー分割、1ファイル1責務、生成ファイルの分離。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第2〜3章 名前空間とディレクトリ構造</h1>
+      <p class="chapter-lede">名前空間はあなたの署名。そして「どこから実行が始まり、どこが公開で、どこが内部か」が構造で分かるのが読めるデータパック。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s2-1">2.1 名前空間はブランドである</a></li>
+          <li><a href="#s2-2">2.2 minecraft名前空間は「上書き専用」</a></li>
+          <li><a href="#s2-3">2.3 1データパック=1名前空間が基本</a></li>
+          <li><a href="#s3-1">3.1 レイヤーを分ける</a></li>
+          <li><a href="#s3-2">3.2 1ファイル=1責務</a></li>
+          <li><a href="#s3-3">3.3 フォルダ名とファイル名の分担</a></li>
+          <li><a href="#s3-4">3.4 function以外のリソースも同じ木構造に</a></li>
+          <li><a href="#s3-5">3.5 生成ファイルは手書きと分ける</a></li>
+        </ul>
+      </div>
+
+      <h2 id="ch2">第2章 名前空間の設計</h2>
+
+      <h3 id="s2-1">2.1 名前空間はブランドである</h3>
+      <p>名前空間は「フォルダ名」ではなく「あなたの署名」。Smithed規約は
+      <strong>ファイルパス・タグ・スコア・チーム・storageすべてに一貫したプレフィックス</strong>を要求している。
+      パック名/作者名/略称のいずれか、一貫して自分に紐づくものを選ぶ。</p>
+
+<pre><code>tcc          <span class="c"># "The Creeper's Code" の略(Smithedの実例)</span>
+rx.playerdb  <span class="c"># 作者グループ rx-modules + パック名(実例)</span>
+gm4_xxx      <span class="c"># Gamemode 4 のモジュール群</span>
+bs           <span class="c"># Bookshelf</span></code></pre>
+
+      <p>推奨パターン:</p>
+      <ul>
+        <li>単発パック: <code>niwatori_casino</code> のようなパック名そのまま</li>
+        <li>同一作者の複数パック群: <code>nw.casino</code> / <code>nw.pvp</code> のように <strong>作者略称.モジュール</strong> で階層化</li>
+        <li>scoreboard等の16文字制限があるものは2〜4文字の短縮形(<code>nw</code>)、
+          ファイルパスやタグはフル(<code>niwatori</code>)と、<strong>長短2つの正式名を最初に決めて表に書いておく</strong></li>
+      </ul>
+
+      <h3 id="s2-2">2.2 minecraft名前空間は「上書き専用」</h3>
+      <p><code>data/minecraft/</code> に置いてよいのは:</p>
+      <ul>
+        <li><code>tags/function/load.json</code>, <code>tags/function/tick.json</code> への <strong>追記</strong></li>
+        <li>バニラのloot table / recipe / tag等を意図的に置き換える場合</li>
+      </ul>
+
+      <p>やってはいけないこと(MC Datapacks規約が明示的に禁止):</p>
+      <ul>
+        <li><code>tick.json</code> / <code>load.json</code> に <code>"replace": true</code> を設定する<br>
+          → 共存する他のデータパック全てのtickを殺す。サーバー運営では致命傷。</li>
+        <li>自作関数を <code>data/minecraft/function/</code> に置く(衝突・上書き事故のもと)</li>
+      </ul>
+
+<pre><code><span class="c">// ✅ data/minecraft/tags/function/tick.json</span>
+{
+  "values": [
+    "niwatori:core/tick"
+  ]
+}</code></pre>
+
+      <h3 id="s2-3">2.3 1データパック=1名前空間が基本、例外は「意図的な公開I/F」</h3>
+      <p>基本は自分の名前空間1つ。例外として、他パックとの連携用グローバル名前空間
+      (<code>global:</code> や <code>#smithed.xxx</code> のような規約タグ)に参加する場合のみ複数名前空間を持つ。
+      「なんとなく機能ごとに名前空間を分ける」のは、内部向けなら<strong>フォルダ分けで十分</strong>。
+      名前空間の数はインターフェースの数、フォルダはモジュールの数、と考える。</p>
+
+      <hr>
+
+      <h2 id="ch3">第3章 ディレクトリ構造と関数の分割</h2>
+
+      <h3 id="s3-1">3.1 レイヤーを分ける: エントリポイント / API / 内部実装</h3>
+      <p>読める大規模データパックに共通するのは「<strong>どこから実行が始まり、どこが外部公開で、
+      どこが触ってはいけない内部か</strong>」が構造で分かること。IMP-Docのアクセス修飾子
+      (<code>@public</code> / <code>@api</code> / <code>@within</code> / <code>@private</code>)の考え方をフォルダ構造に落とすとこうなる:</p>
+
+<pre><code>data/niwatori/function/
+├── load.mcfunction            <span class="c"># エントリポイント: #minecraft:load から</span>
+├── tick.mcfunction            <span class="c"># エントリポイント: #minecraft:tick から</span>
+├── api/                       <span class="c"># 他パック・コマブロから呼んでよい公開API</span>
+│   ├── give_money.mcfunction
+│   └── open_atm.mcfunction
+├── casino/                    <span class="c"># モジュール(機能単位)</span>
+│   ├── atm/
+│   │   ├── open.mcfunction
+│   │   ├── deposit.mcfunction
+│   │   └── _render_balance.mcfunction    <span class="c"># 先頭 _ = このフォルダ内部専用</span>
+│   └── slot/
+├── pvp/
+│   ├── rating/
+│   └── arena/
+├── core/                      <span class="c"># 全モジュール共通の基盤(tick分配、時計、定数)</span>
+│   ├── tick.mcfunction
+│   └── constants.mcfunction
+└── debug/                     <span class="c"># デバッグ用(配布時に消せる独立性を保つ)</span></code></pre>
+
+      <p>ポイント:</p>
+      <ul>
+        <li><strong>tick.jsonに直接ぶら下げる関数は1つだけ</strong>にして(datapack.wikiも推奨)、
+          その中で各モジュールのtickへ分配する。tickの全体像が1ファイルで読める。</li>
+        <li>内部専用関数は <code>_</code> プレフィックスや <code>impl/</code> <code>zz_</code> フォルダで「呼ぶな」を表現する
+          流儀がある(mcfunctionに言語レベルのprivateはないため、命名で代用する)。</li>
+        <li><code>debug/</code> <code>test/</code> は本体から参照されない形で分離し、リリース時に丸ごと消せるようにする。</li>
+      </ul>
+
+      <h3 id="s3-2">3.2 1ファイル=1責務、「executeの都合」による分割を恐れない</h3>
+      <p>mcfunctionでは以下の理由で<strong>ファイル分割が他言語より頻繁に必要</strong>になる:</p>
+      <ol>
+        <li><code>execute as @e[...] run function ...</code> で実行者を切り替える(@s化)</li>
+        <li>条件分岐のブロック化(if文の中身に相当する部分を別ファイルへ)</li>
+        <li>マクロ行を含む部分の分離(<a href="macros.html">第6章</a>)</li>
+        <li>再帰ループの本体</li>
+      </ol>
+
+      <p>これは「悪」ではなく、mcfunctionにおける関数抽出(Extract Method)そのもの。
+      むしろ<strong>「このファイルは何の文脈で実行されるか」が一意になるように割る</strong>のが正しい。
+      1ファイル内に「サーバーとして実行される行」と「各プレイヤーとして実行される行」が
+      混ざっている方がよほど読めない。</p>
+
+<pre><code><span class="ng">❌ tick.mcfunction 内で</span>
+execute as @a[predicate=nw:is_in_casino] at @s run tp ...
+execute as @a[predicate=nw:is_in_casino] at @s run particle ...
+execute as @a[predicate=nw:is_in_casino] at @s run playsound ...
+
+<span class="ok">✅ tick.mcfunction:</span>
+execute as @a[predicate=nw:is_in_casino] at @s run function nw:casino/player_tick
+   <span class="c">casino/player_tick.mcfunction:  (@s = カジノ内プレイヤー, at @s)</span>
+tp ...
+particle ...
+playsound ...</code></pre>
+
+      <p>セレクタ評価が1回になるので<strong>速度も上がる</strong>(<a href="performance.html">第9章</a>)。可読性と性能が同じ方向を向く珍しい言語。</p>
+
+      <h3 id="s3-3">3.3 フォルダ名は複数形/カテゴリ名、ファイル名は単数の動作</h3>
+
+<pre><code>casino/games/slot/spin.mcfunction
+casino/games/poker/deal.mcfunction</code></pre>
+
+      <p>vanillaデータ(loot_table等)の構造も参考になる。<code>chests/</code>, <code>entities/</code> のように
+      バニラはカテゴリフォルダを複数形にしている。</p>
+
+      <h3 id="s3-4">3.4 function以外のリソースも同じ木構造にそろえる</h3>
+      <p>predicate / advancement / loot_table を、対応するfunctionと<strong>同じサブパス</strong>に置くと
+      関連が追いやすい:</p>
+
+<pre><code>data/niwatori/function/casino/atm/open.mcfunction
+data/niwatori/predicate/casino/is_in_casino.json
+data/niwatori/advancement/casino/atm/interacted.json
+data/niwatori/loot_table/casino/reward/jackpot.json</code></pre>
+
+      <p>進捗トリガー→<code>rewards.function</code>→関数、の連鎖はデータパックの主要イベント機構なので、
+      <code>advancement/casino/atm/interacted.json</code> と <code>function/casino/atm/on_interact.mcfunction</code> のように
+      <strong>対になる名前</strong>を付ける(イベントハンドラ命名: <code>on_&lt;イベント&gt;</code>)。</p>
+
+      <h3 id="s3-5">3.5 生成ファイルは手書きファイルと分ける</h3>
+      <p>Pythonスクリプト等でloot tableやmcfunctionを自動生成する場合(チェスト戦利品テーブル等)、
+      生成物は <code>generated/</code> サブフォルダに隔離し、フォルダ先頭に
+      <code># THIS FILE IS GENERATED BY tools/chest-loottable.py -- DO NOT EDIT</code> を入れる。
+      Bookshelfもビルド時生成ファイルを明確に区別している。生成物を手で直すと次の生成で消えるので、
+      「手で編集してよい領域」と「スクリプトの出力先」を物理的に分離するのが鉄則。</p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

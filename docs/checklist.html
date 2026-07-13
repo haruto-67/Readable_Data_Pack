@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第16〜17章 チェックリストと参考文献 | リーダブル・データパック</title>
+<meta name="description" content="データパック提出前のセルフチェックリスト(命名・ドキュメント・マクロ・動作・互換)と、本ガイドの元になった一次ソース一覧。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第16〜17章 チェックリストと参考文献</h1>
+      <p class="chapter-lede">リリース前の最終セルフチェックと、さらに深く調べるための一次ソース。</p>
+
+      <h2 id="ch16">第16章 提出前チェックリスト</h2>
+
+      <h3>命名・構造</h3>
+      <ul class="checklist">
+        <li>すべて lower_snake_case か</li>
+        <li>objective / tag / storage / fakeplayer / team に名前空間プレフィックスがあるか</li>
+        <li>tick.jsonに直接ぶら下がる関数は1つか</li>
+        <li>内部専用関数が <code>_</code> / <code>@within</code> / フォルダで区別されているか</li>
+      </ul>
+
+      <h3>ドキュメント</h3>
+      <ul class="checklist">
+        <li>全関数にヘッダ(説明 / @s / 実行位置 / run from)があるか</li>
+        <li>マクロ実体に <code>@input</code>(引数の名前と型)が書かれているか</li>
+        <li>変更した関数のヘッダコメントは現状と一致しているか</li>
+      </ul>
+
+      <h3>マクロ</h3>
+      <ul class="checklist">
+        <li><code>$</code> 行を含むファイルは最小か</li>
+        <li>引数はインラインNBT(定数)か <code>nw:in</code>(動的)に統一されているか</li>
+        <li>プレイヤー由来の文字列がマクロに流れ込む経路がないか</li>
+      </ul>
+
+      <h3>動作・性能</h3>
+      <ul class="checklist">
+        <li>loadは冪等か(objectives add重複、schedule replace)</li>
+        <li><code>@e</code>に type と tag が付いているか / nbtセレクタが残っていないか</li>
+        <li>uninstallで全部消えるか(objective, tag付きエンティティ, storage, schedule, bossbar, team)</li>
+        <li>/debugプロファイルでtick関数の時間を一度は見たか</li>
+      </ul>
+
+      <h3>互換</h3>
+      <ul class="checklist">
+        <li>minecraft名前空間への追加はtick/load/意図的上書きのみか</li>
+        <li>自作エンティティにタグ(+smithed.entity)が付いているか</li>
+        <li>pack.mcmetaのformat/description/バージョンが最新か</li>
+      </ul>
+
+      <hr>
+
+      <h2 id="ch17">第17章 参考文献(一次ソース)</h2>
+      <ul>
+        <li>Minecraft Wiki – Tutorial: Creating a data pack(公式推奨命名・構造)<br>
+          <a href="https://minecraft.wiki/w/Tutorial:Creating_a_data_pack" target="_blank" rel="noopener">https://minecraft.wiki/w/Tutorial:Creating_a_data_pack</a></li>
+        <li>Minecraft Wiki – Tutorial: Optimizing a data pack(最適化の定番集)<br>
+          <a href="https://minecraft.wiki/w/Tutorial:Optimizing_a_data_pack" target="_blank" rel="noopener">https://minecraft.wiki/w/Tutorial:Optimizing_a_data_pack</a></li>
+        <li>Minecraft Wiki – Data pack / Pack format(min_format/max_format等)<br>
+          <a href="https://minecraft.wiki/w/Data_pack" target="_blank" rel="noopener">https://minecraft.wiki/w/Data_pack</a></li>
+        <li>Smithed Conventions(Namespacing / Pack IDs / タグ仕様)<br>
+          <a href="https://docs.smithed.dev/conventions/" target="_blank" rel="noopener">https://docs.smithed.dev/conventions/</a></li>
+        <li>MC Datapacks Conventions(Namespace / Uninstallation / Datapack Advancement / スタイルガイド)<br>
+          <a href="https://mc-datapacks.github.io/en/conventions/index.html" target="_blank" rel="noopener">https://mc-datapacks.github.io/en/conventions/index.html</a></li>
+        <li>Gamemode 4 – Data Pack Creation(モジュール標準・ヘッダコメント・命名規約)<br>
+          <a href="https://wiki.gm4.co/Data_Pack_Creation" target="_blank" rel="noopener">https://wiki.gm4.co/Data_Pack_Creation</a><br>
+          <a href="https://github.com/Gamemode4Dev/GM4_Datapacks" target="_blank" rel="noopener">https://github.com/Gamemode4Dev/GM4_Datapacks</a></li>
+        <li>Bookshelf – Contribute: Conventions / Good Practices / Special Functions<br>
+          <a href="https://bookshelf.docs.gunivers.net/en/latest/contribute/conventions.html" target="_blank" rel="noopener">https://bookshelf.docs.gunivers.net/en/latest/contribute/conventions.html</a><br>
+          <a href="https://bookshelf.docs.gunivers.net/en/latest/contribute/good-practices.html" target="_blank" rel="noopener">https://bookshelf.docs.gunivers.net/en/latest/contribute/good-practices.html</a></li>
+        <li>IMP-Doc のすゝめ(ChenCMD, Qiita)/ Arcensoth imp-spec<br>
+          <a href="https://qiita.com/ChenCMD/items/1c3092e58a13cc6e6697" target="_blank" rel="noopener">https://qiita.com/ChenCMD/items/1c3092e58a13cc6e6697</a></li>
+        <li>Ellivers – Good Data Pack Practices and Common Tricks(GitHub Gist)<br>
+          <a href="https://gist.github.com/Ellivers/762822ee452f1beb058f044ec3139d73" target="_blank" rel="noopener">https://gist.github.com/Ellivers/762822ee452f1beb058f044ec3139d73</a></li>
+        <li>Datapack Wiki – Functions / MCFunction vs Traditional Coding / Performance<br>
+          <a href="https://datapack.wiki/" target="_blank" rel="noopener">https://datapack.wiki/</a></li>
+        <li>datapack-linter(ChenCMD)+ GitHub Actions構文チェック(Qiita)<br>
+          <a href="https://qiita.com/0kq/items/05c9c2528f4020739fdc" target="_blank" rel="noopener">https://qiita.com/0kq/items/05c9c2528f4020739fdc</a></li>
+        <li>参考データパック実装: Gamemode 4, Bookshelf(mcbookshelf), PlayerDB(rx-modules),
+          Tickbuster(Arcensoth), Smithedライブラリ群</li>
+      </ul>
+
+      <hr>
+
+      <p><em>このガイドは1.21.x時点のコミュニティ標準をまとめたもの。バージョン更新(特に26.x系の
+      pack_format刷新・NBT型厳格化)で細部は変わるため、移行時は各一次ソースを再確認すること。</em></p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

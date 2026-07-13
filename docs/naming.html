@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第1章 命名規則 | リーダブル・データパック</title>
+<meta name="description" content="Minecraftデータパックの命名規則。lower_snake_case、関数名、scoreboard objective、フェイクプレイヤー、タグ、storage、custom_dataの命名ルール。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <h1>第1章 命名規則(ネーミング)</h1>
+      <p class="chapter-lede">名前はデータパックで最初に読まれるドキュメント。ファイル・objective・タグ・storage、すべてのIDに一貫したルールを。</p>
+
+      <div class="in-page-toc">
+        <p class="toc-title">この章の内容</p>
+        <ul>
+          <li><a href="#s1-1">1.1 基本は lower_snake_case</a></li>
+          <li><a href="#s1-2">1.2 動詞始まりの関数名</a></li>
+          <li><a href="#s1-3">1.3 判定系は疑問形/状態名</a></li>
+          <li><a href="#s1-4">1.4 スコアボードobjectiveの命名</a></li>
+          <li><a href="#s1-5">1.5 フェイクプレイヤーの命名</a></li>
+          <li><a href="#s1-6">1.6 エンティティタグの命名</a></li>
+          <li><a href="#s1-7">1.7 storageの命名</a></li>
+          <li><a href="#s1-8">1.8 カスタムNBTの命名</a></li>
+          <li><a href="#s1-9">1.9 翻訳キー・チーム・bossbar等</a></li>
+          <li><a href="#s1-10">1.10 命名の一般原則</a></li>
+        </ul>
+      </div>
+
+      <h2 id="s1-1">1.1 基本は lower_snake_case</h2>
+      <p>ファイル名・フォルダ名・名前空間・リソースパスは <strong>小文字スネークケース</strong>(<code>lower_case_with_underscores</code>)。
+      これはMinecraft Wiki公式チュートリアルでも推奨されており、そもそもリソースロケーションに使える文字が
+      <code>0-9 a-z _ - . /</code> に制限されているため、大文字は物理的に使えない。</p>
+
+<pre><code><span class="ok">✅ data/niwatori/function/casino/atm/open_menu.mcfunction</span>
+<span class="ng">❌ data/Niwatori/function/Casino/ATM/OpenMenu.mcfunction   # そもそも読み込まれない</span>
+<span class="ng">❌ data/niwatori/function/casino/atm/openmenu.mcfunction   # 単語の切れ目が読めない</span></code></pre>
+
+      <p>ハイフン <code>-</code> も使えるが、コミュニティの主流はアンダースコア。<strong>混ぜないこと</strong>が最重要。
+      プロジェクト内で <code>open-menu</code> と <code>open_menu</code> が混在すると、補完に頼れなくなりtypoバグの温床になる。</p>
+
+      <h2 id="s1-2">1.2 「何をするか」が読める動詞始まりの関数名</h2>
+      <p>関数は「実行するもの」なので、<strong>動詞_目的語</strong> が基本形。</p>
+
+<pre><code><span class="ok">✅ give_reward.mcfunction        # 報酬を与える</span>
+<span class="ok">✅ check_balance.mcfunction      # 残高を確認する</span>
+<span class="ok">✅ reset_arena.mcfunction        # アリーナをリセットする</span>
+<span class="ng">❌ reward.mcfunction             # 与えるのか、定義なのか、判定なのか不明</span>
+<span class="ng">❌ arena2.mcfunction             # 2とは</span></code></pre>
+
+      <p>ただし「フォルダ名が目的語、ファイル名が動詞」という分担も広く使われる。
+      むしろ規模が大きくなるとこちらの方が読みやすい:</p>
+
+<pre><code>casino/atm/open.mcfunction       <span class="c"># atmを開く(casino:atm/open)</span>
+casino/atm/close.mcfunction
+casino/atm/deposit.mcfunction
+casino/atm/withdraw.mcfunction</code></pre>
+
+      <p>リソースパス全体(<code>casino:atm/open</code>)を1つの文として読んだとき意味が通るように名付ける。</p>
+
+      <h2 id="s1-3">1.3 状態を返す関数・判定系は疑問形/状態名</h2>
+
+<pre><code><span class="ok">✅ is_sneaking(predicate)</span>
+<span class="ok">✅ has_ticket(predicate)</span>
+<span class="ok">✅ can_afford.mcfunction     # 残高判定してスコアに結果を返す関数</span></code></pre>
+
+      <p>predicateはまさに真偽値なので <code>is_</code> <code>has_</code> <code>can_</code> プレフィックスが読みやすい。</p>
+
+      <h2 id="s1-4">1.4 スコアボードobjectiveの命名</h2>
+      <ul>
+        <li><strong>objective名は16文字制限</strong>がある(表示名は別)。この制約下で名前空間衝突を避ける必要がある。</li>
+        <li>Smithed規約・GM4標準・Bookshelf規約はいずれも「<strong>短縮プレフィックス + <code>.</code> or <code>_</code> + 名前</strong>」を要求する。</li>
+      </ul>
+
+<pre><code><span class="ok">✅ nw.money          # nw = niwatori の短縮名前空間</span>
+<span class="ok">✅ nw.pvp_rating</span>
+<span class="ok">✅ gm4_speed         # Gamemode 4 は gm4_ プレフィックス</span>
+<span class="ok">✅ bs.var            # Bookshelf は bs. プレフィックス</span>
+<span class="ng">❌ money             # 他のデータパックの "money" と確実に衝突する</span>
+<span class="ng">❌ score, temp, data # 一般名詞は全世界の初心者と衝突する</span></code></pre>
+
+      <p>区切り文字は <code>.</code> 派(Smithed/Bookshelf)と <code>_</code> 派(GM4)があるが、どちらでもよいので<strong>統一</strong>する。
+      <code>.</code> はセレクタ内でも合法で、ドメイン風に階層化できるので個人的には <code>.</code> を推奨:</p>
+
+<pre><code>nw.casino.balance
+nw.casino.bet
+nw.pvp.kills
+nw.pvp.deaths</code></pre>
+
+      <h2 id="s1-5">1.5 フェイクプレイヤー(スコアホルダー)の命名</h2>
+      <p>コミュニティで最も確立している規約のひとつ。GM4標準・Bookshelf規約がほぼ同じルールを採用している:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>プレフィックス</th><th>意味</th><th>例</th></tr></thead>
+          <tbody>
+            <tr><td><code>#</code></td><td><strong>非公開(内部用)</strong>。チャットのスコア表示に出ない</td><td><code>#tmp</code>, <code>#nw.atm.result</code></td></tr>
+            <tr><td><code>$</code></td><td><strong>公開API/外部から読み書きしてよい変数</strong></td><td><code>$nw.config.max_bet</code></td></tr>
+            <tr><td><code>#&lt;数値&gt;</code></td><td><strong>定数</strong>。値と同じ名前を付ける</td><td><code>scoreboard players set #100 nw.const 100</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <ul>
+        <li><code>#</code> 始まりのフェイクプレイヤーはサイドバー等に表示されないため、内部変数は必ず <code>#</code> を付ける。</li>
+        <li>定数は <code>#2</code>, <code>#100</code>, <code>#-1</code> のように<strong>値そのものを名前にする</strong>(GM4標準)。<code>#two</code> などと訳さない。</li>
+        <li>定数以外の変数はsnake_caseで意味のある名前を付ける: <code>$has_soul_fire_heatsource</code>(GM4の実例)。</li>
+        <li>フェイクプレイヤー名にも名前空間を付ける(<code>#nw.foo</code>)。ライブラリ系データパックとobjectiveを共有する可能性がゼロでも、癖として付けておくと事故らない。</li>
+      </ul>
+
+      <h2 id="s1-6">1.6 エンティティタグ(/tag)の命名</h2>
+      <p>タグは文字数制限がないので、<strong>フル名前空間 + ドット区切り + 分類</strong>が読みやすい。</p>
+
+<pre><code><span class="ok">✅ niwatori.casino.dealer          # &lt;名前空間&gt;.&lt;機能&gt;.&lt;役割&gt;</span>
+<span class="ok">✅ niwatori.entity.marker.atm      # 分類を挟む流儀(entity/block/player等)</span>
+<span class="ok">✅ bs.persistent                   # Bookshelfの実例: 消してはいけない永続エンティティ</span>
+<span class="ng">❌ dealer                          # 衝突不可避</span>
+<span class="ng">❌ DEALER, Dealer                  # 大文字は合法だが、全小文字統一が主流</span></code></pre>
+
+      <p>「グローバルに意味を持つ共通タグ」も存在する(<a href="performance.html#ch10">第10章</a>参照): <code>smithed.entity</code>(データパック製エンティティ)、
+      <code>smithed.strict</code>(他パックは触るな)、<code>global.ignore</code>系など。自作markerには必ず自分のタグを付け、
+      <code>kill @e[type=marker]</code> のような雑な掃除で他パックを壊さない/壊されないようにする。</p>
+
+      <h2 id="s1-7">1.7 storageの命名</h2>
+      <p>storageはIDそのものが名前空間付き(<code>namespace:path</code>)なので追加プレフィックス不要。
+      ただし<strong>用途別にstorageを分ける</strong>規約を作ると読みやすい:</p>
+
+<pre><code>niwatori:in      <span class="c"># 関数呼び出しの引数入れ(マクロ用)※第6章</span>
+niwatori:out     <span class="c"># 関数の戻り値入れ</span>
+niwatori:data    <span class="c"># 永続データ(プレイヤーDB等)</span>
+niwatori:temp    <span class="c"># 一時領域(tick内で使い捨て)</span>
+niwatori:const   <span class="c"># 定数テーブル(loadで初期化)</span></code></pre>
+
+      <p>rx-modules/PlayerDBのような著名パックも <code>rx.playerdb</code> 式の名前空間で同様の分離をしている。
+      キー第一階層はモジュール名にする(Bookshelf: <code>bs:data &lt;module&gt;.&lt;feature&gt;</code>)。</p>
+
+      <h2 id="s1-8">1.8 カスタムNBT(custom_data)の命名</h2>
+      <p>アイテムやエンティティに独自データを持たせるときは、<strong>必ず自分の名前空間キーで1段ラップ</strong>する。</p>
+
+<pre><code><span class="ok">✅ give @s diamond_sword[custom_data={niwatori:{item_id:"rating_sword",tier:3}}]</span>
+<span class="ng">❌ give @s diamond_sword[custom_data={item_id:"rating_sword",tier:3}]</span></code></pre>
+
+      <p>トップレベルに <code>item_id</code> のような一般名を置くと、他のデータパックの <code>custom_data</code> 判定と誤爆する。
+      これはMC Datapacks規約の名前空間規約(「NBTも名前空間化せよ」)そのもの。</p>
+
+      <h2 id="s1-9">1.9 翻訳キー・チーム・bossbar等その他ID</h2>
+      <ul>
+        <li>bossbar ID: <code>niwatori:casino_jackpot</code>(もともと名前空間付き)</li>
+        <li>チーム名: 16文字制限あり。<code>nw.red</code> のように短縮プレフィックス。</li>
+        <li>進捗/loot table/predicate等のJSON系はすべてリソースパスなので1.1〜1.2と同じ規則。</li>
+      </ul>
+
+      <h2 id="s1-10">1.10 命名の一般原則(リーダブルコードとの共通部分)</h2>
+      <ul>
+        <li><strong>具体的な単語を選ぶ</strong>: <code>check</code> より <code>validate_bet</code>、<code>do</code> より <code>apply_damage</code>。</li>
+        <li><strong>スコープが広いものほど長い名前</strong>: tick毎に走る主要関数やAPI関数は説明的に。
+          数行のヘルパーで同フォルダからしか呼ばれないものは短くてよい。</li>
+        <li><strong>単位・型を名前に含める</strong>: <code>cooldown_ticks</code>, <code>price_tama</code>(通貨単位タマなら), <code>angle_deg</code>。
+          scoreboardはintしか持てないので「固定小数点で100倍した値」なら <code>speed_x100</code> 等と明示する。</li>
+        <li><strong>否定形を避ける</strong>: <code>is_not_ready</code> より <code>is_ready</code> を定義して <code>unless predicate</code> で使う。</li>
+        <li><strong>予約語的な名前を知っておく</strong>: Bookshelfは <code>__load__</code> <code>__unload__</code> <code>__help__</code> を
+          特殊関数として予約している。自分のパックでも「全モジュール共通の決まったファイル名」を
+          少数決めておくと迷子にならない(<a href="operations.html#ch11">第11章</a>)。</li>
+      </ul>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>

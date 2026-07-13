@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>リーダブル・データパック — 良いデータパックの書き方 完全ガイド</title>
+<meta name="description" content="『リーダブルコード』のMinecraftデータパック版。コミュニティ規約と著名データパックの実践から、読みやすく・壊れにくく・速いデータパックの書き方をまとめたガイド。">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📗</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <button class="menu-btn" id="menu-btn" aria-label="メニューを開閉">☰</button>
+  <a class="brand" href="index.html"><span class="brand-icon">📗</span>リーダブル・データパック</a>
+  <a class="gh-link" href="https://github.com/haruto-67/Readable_Data_Pack" target="_blank" rel="noopener">GitHub</a>
+</header>
+<div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+<div class="layout">
+  <nav class="sidebar" id="sidebar" aria-label="章ナビゲーション"></nav>
+  <main>
+    <article>
+      <div class="hero">
+        <h1>リーダブル・データパック</h1>
+        <p class="subtitle">〜 良いデータパックの書き方 完全ガイド 〜</p>
+        <p class="meta">対象バージョン: Java Edition 1.21.x(1.20.2以降のマクロ対応を前提。26.x系への移行時の注意も併記)</p>
+      </div>
+
+      <p>このドキュメントは『リーダブルコード』のようなコーディング作法本の「Minecraftデータパック版」として、
+      コミュニティの規約(Smithed Conventions / MC Datapacks Conventions / Gamemode 4 標準 /
+      Bookshelf コントリビューションガイド / IMP-Doc / Minecraft Wiki 最適化チュートリアル 等)と、
+      GitHub上の著名データパック(Gamemode 4, Bookshelf, PlayerDB, Vanilla Tweaks系 等)の実践から
+      「こう書かれたデータパックは読みやすく、壊れにくく、速い」というルールをまとめたものです。</p>
+
+      <blockquote>
+        <p><strong>一番大事な原則(リーダブルコードと同じ)</strong></p>
+        <p>コードは「書く時間」より「読む時間」の方が圧倒的に長い。
+        mcfunctionは特に <em>実行文脈(誰が・どこで実行しているか)がファイルに書かれていない</em> 言語なので、
+        「未来の自分が3秒で文脈を復元できるか」を常に基準にする。</p>
+      </blockquote>
+
+      <h2 id="toc">目次</h2>
+
+      <div class="card-grid">
+        <a class="card" href="naming.html">
+          <span class="card-ch">第1章</span>
+          <p class="card-title">命名規則</p>
+          <p class="card-desc">lower_snake_case、動詞始まりの関数名、objective・タグ・storageなど全IDの命名ルール。</p>
+        </a>
+        <a class="card" href="structure.html">
+          <span class="card-ch">第2〜3章</span>
+          <p class="card-title">名前空間とディレクトリ構造</p>
+          <p class="card-desc">名前空間は署名。minecraft名前空間の扱い、レイヤー分割、1ファイル1責務の考え方。</p>
+        </a>
+        <a class="card" href="context.html">
+          <span class="card-ch">第4〜5章</span>
+          <p class="card-title">コメントと実行文脈</p>
+          <p class="card-desc">全関数のヘッダコメント、IMP-Doc、「@s中心主義」による実行文脈の設計。</p>
+        </a>
+        <a class="card" href="macros.html">
+          <span class="card-ch">第6章 ★</span>
+          <p class="card-title">マクロ関数の設計</p>
+          <p class="card-desc">本ガイドの目玉。マクロ実体の命名・引数規約・隔離・セキュリティ・使いどころの選択表。</p>
+        </a>
+        <a class="card" href="variables.html">
+          <span class="card-ch">第7〜8章</span>
+          <p class="card-title">変数管理と制御構造</p>
+          <p class="card-desc">scoreboard / storage の使い分け、定数プール、早期return、ループ、イベント駆動。</p>
+        </a>
+        <a class="card" href="performance.html">
+          <span class="card-ch">第9〜10章</span>
+          <p class="card-title">パフォーマンスと互換性</p>
+          <p class="card-desc">セレクタ最適化、NBTを避ける階段、計測の作法、複数データパック共存のルール。</p>
+        </a>
+        <a class="card" href="operations.html">
+          <span class="card-ch">第11〜13章</span>
+          <p class="card-title">運用・配布・ツール</p>
+          <p class="card-desc">load / tick / install / uninstall の標準セット、pack.mcmeta、Git管理、開発環境とCI。</p>
+        </a>
+        <a class="card" href="testing.html">
+          <span class="card-ch">第14〜15章</span>
+          <p class="card-title">テストとアンチパターン</p>
+          <p class="card-desc">debugフォルダの常設、アサーション、テスト関数、やってはいけないパターン14選。</p>
+        </a>
+        <a class="card" href="checklist.html">
+          <span class="card-ch">第16〜17章</span>
+          <p class="card-title">チェックリストと参考文献</p>
+          <p class="card-desc">提出前のセルフチェック項目と、このガイドの元になった一次ソース一覧。</p>
+        </a>
+      </div>
+
+      <h2 id="how-to-read">このガイドの読み方</h2>
+      <p>各章は独立して読めますが、初めての方は第1章から順に読むのがおすすめです。
+      すでにデータパックを書いている方は、<a href="testing.html#ch15">アンチパターン集</a>と
+      <a href="checklist.html">チェックリスト</a>から入って、引っかかった項目の章に戻ると効率的です。</p>
+
+      <p>このガイドは1.21.x時点のコミュニティ標準をまとめたものです。バージョン更新(特に26.x系の
+      pack_format刷新・NBT型厳格化)で細部は変わるため、移行時は<a href="checklist.html#ch17">各一次ソース</a>を再確認してください。</p>
+    </article>
+    <nav class="pager" id="pager" aria-label="前後のページ"></nav>
+    <footer class="site-footer">リーダブル・データパック — 良いデータパックの書き方 完全ガイド(対象: Java Edition 1.21.x)</footer>
+  </main>
+</div>
+<script src="site.js"></script>
+</body>
+</html>
